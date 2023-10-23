@@ -501,7 +501,7 @@ namespace ObrIzobr1
             {
                 for (int x = 0; x < width; x++)
                 {
-                    if (edgesImage.GetPixel(x, y).R == 255) // Если пиксель находится на крае
+                    if (edgesImage.GetPixel(x, y).R == 255) // Если пиксель - край
                     {
                         for (int size = 0; size < houghSpace.GetLength(0); size++)
                         {
@@ -527,7 +527,7 @@ namespace ObrIzobr1
         {
             // Реализация поиска максимумов в пространстве параметров
 
-            List<Point> maxima = new List<Point>();
+            List<Point> maximal = new List<Point>();
             int size = houghSpace.GetLength(0);
             int width = houghSpace.GetLength(1);
             int height = houghSpace.GetLength(2);
@@ -568,13 +568,13 @@ namespace ObrIzobr1
 
                         if (isMaximum)
                         {
-                            maxima.Add(new Point(x, y));
+                            maximal.Add(new Point(x, y));
                         }
                     }
                 }
             }
 
-            return maxima;
+            return maximal;
         }
 
         private Bitmap DrawSquares(Bitmap image, List<Point> squares, int squareSize)
