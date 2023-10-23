@@ -410,8 +410,15 @@ namespace ObrIzobr1
 
             Bitmap edgesImage = new Bitmap(width, height);
 
-            int[,] horizontalSobel = { { -1, 0, 1 }, { -2, 0, 2 }, { -1, 0, 1 } };
-            int[,] verticalSobel = { { -1, -2, -1 }, { 0, 0, 0 }, { 1, 2, 1 } };
+            int[,] horizontalSobel = { 
+                { -1, 0, 1 },
+                { -2, 0, 2 },
+                { -1, 0, 1 } };
+
+            int[,] verticalSobel = { 
+                { -1, -2, -1 },
+                { 0, 0, 0 },
+                { 1, 2, 1 } };
 
             for (int y = 1; y < height - 1; y++)
             {
@@ -433,7 +440,7 @@ namespace ObrIzobr1
                     }
 
                     int gradientMagnitude = (int)Math.Sqrt(horizontalGradient * horizontalGradient + verticalGradient * verticalGradient);
-                    gradientMagnitude = Math.Min(255, gradientMagnitude); // Ограничиваем значение до 255
+                    gradientMagnitude = Math.Min(255, gradientMagnitude);
 
                     Color edgeColor = Color.FromArgb(gradientMagnitude, gradientMagnitude, gradientMagnitude);
                     edgesImage.SetPixel(x, y, edgeColor);
