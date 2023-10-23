@@ -361,12 +361,12 @@ namespace ObrIzobr1
             List<Point> detectedSquares = FindMax();
 
             // Шаг 5: Фильтрация результатов
-            int minSize = 20; // Установите минимальный размер квадрата // 20
-            int minVotes = 200; // Установите минимальное количество голосов // 200
+            int minSize = 20; //минимальный размер квадрата // 20
+            int minVotes = 200; //минимальное количество голосов // 200
             List<Point> filteredSquares = FilterSquares(detectedSquares, minSize, minVotes);
 
             // Шаг 6: Отрисовка квадратов на исходном изображении
-            Bitmap resultImage = DrawSquares(inputImage, filteredSquares, minSize * 2); // Умножьте минимальный размер на 2, чтобы получить сторону квадрата
+            Bitmap resultImage = DrawSquares(inputImage, filteredSquares, minSize * 2); //размер * 2, чтобы получить сторону квадрата
 
             return resultImage;
         }
@@ -378,7 +378,7 @@ namespace ObrIzobr1
             int width = image.Width;
             int height = image.Height;
 
-            // Создайте новое изображение в оттенках серого
+            // новое изображение в оттенках серого
             Bitmap grayImage = new Bitmap(width, height);
 
             for (int y = 0; y < height; y++)
@@ -388,13 +388,13 @@ namespace ObrIzobr1
                     // Получите цвет пикселя
                     Color color = image.GetPixel(x, y);
 
-                    // Вычислите среднее значение RGB для получения оттенка серого
+                    // среднее значение RGB для получения оттенка серого
                     int grayValue = (int)(0.299 * color.R + 0.587 * color.G + 0.114 * color.B);
 
-                    // Создайте цвет оттенка серого
+                    // цвет оттенка серого
                     Color grayColor = Color.FromArgb(grayValue, grayValue, grayValue);
 
-                    // Установите цвет пикселя в оттенок серого
+                    // цвет пикселя в оттенок серого
                     grayImage.SetPixel(x, y, grayColor);
                 }
             }
@@ -613,7 +613,7 @@ namespace ObrIzobr1
             {
                 int x = square.X;
                 int y = square.Y;
-                int size = GetSquareSizeFromHoughSpace(square, minSize); // Реализуйте этот метод для получения размера квадрата из пространства параметров Hough
+                int size = GetSquareSizeFromHoughSpace(square, minSize);
 
                 if (size >= minSize && houghSpace[size, x, y] >= minVotes)
                 {
@@ -628,4 +628,4 @@ namespace ObrIzobr1
 }
 
 
-// Выделение границ и поиск объектов при помощи методов преобразования Хаффа. Метод Щара и поиск квадрата. 
+// Выделение границ и поиск объектов при помощи методов преобразования Хафа. Метод Щарра и поиск квадрата. 
