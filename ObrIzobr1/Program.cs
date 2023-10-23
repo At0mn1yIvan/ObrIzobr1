@@ -60,7 +60,7 @@ namespace ObrIzobr1
             Console.WriteLine(img6_p.UQI_Part(15, 15));*/
 
 
-            Noise rlNoise = new Noise("C:\\Users\\admin\\Downloads\\originalPic.jpg");
+            /*Noise rlNoise = new Noise("C:\\Users\\admin\\Downloads\\originalPic.jpg");
             rlNoise.RaylieghNoise(7, 11000).Save("C:\\Users\\admin\\Downloads\\rlNoisePic.jpg", ImageFormat.Jpeg);
             Bitmap nonLocalF = NonLocalMeansFilter.ApplyFilter(rlNoise.updatedImage, 2, 1, 250);
             nonLocalF.Save("C:\\Users\\admin\\Downloads\\rlNonLocalMeansFilterPic.jpg", ImageFormat.Jpeg);
@@ -78,7 +78,7 @@ namespace ObrIzobr1
             Console.WriteLine(compare2.MSE(0, compare2.image1.Width, 0, compare2.image1.Height));
             Console.WriteLine(compare2.MSE_Part(15, 15));
             Console.WriteLine(compare2.UQI(0, compare2.image1.Width, 0, compare2.image1.Height));
-            Console.WriteLine(compare2.UQI_Part(15, 15));
+            Console.WriteLine(compare2.UQI_Part(15, 15));*/
 
 
             // 3, 2, 500
@@ -88,10 +88,19 @@ namespace ObrIzobr1
             //0,06507364927652855
 
             //4, 2, 250
-           /* 375,4538756342438
-            11,193792592592594
-            0,9860089167691518
-            0,06601543576756154*/
+            /* 375,4538756342438
+             11,193792592592594
+             0,9860089167691518
+             0,06601543576756154*/
+
+
+            Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\Cat2.jpg");
+
+            HoughSquareDetection h = new HoughSquareDetection(originalImage);
+
+            Bitmap h2 = h.DetectSquares();
+
+            h2.Save("C:\\Users\\khram\\Downloads\\CatH.jpg", ImageFormat.Jpeg);
         }
 
     }
@@ -323,6 +332,300 @@ namespace ObrIzobr1
             return sumSquaredDiff;
         }
     }
+
+
+
+    public class HoughSquareDetection
+    {
+        private Bitmap inputImage;
+        private int[,,] houghSpace;
+
+        public HoughSquareDetection(Bitmap image)
+        {
+            inputImage = image;
+        }
+
+        public Bitmap DetectSquares()
+        {
+            // Шаг 1: Преобразование в оттенки серого и поиск горизонтальных и вертикальных краев
+            Bitmap grayImage = ConvertToGray(inputImage);
+            Bitmap edgesImage = DetectEdges(grayImage);
+
+            // Шаг 2: Построение пространства параметров
+            BuildHoughSpace(edgesImage);
+
+            // Шаг 3: Голосование
+            VoteInHoughSpace(edgesImage);
+
+            // Шаг 4: Поиск максимумов
+            List<Point> detectedSquares = FindMax();
+
+            // Шаг 5: Фильтрация результатов
+            int minSize = 20; // Установите минимальный размер квадрата // 20
+            int minVotes = 200; // Установите минимальное количество голосов // 200
+            List<Point> filteredSquares = FilterSquares(detectedSquares, minSize, minVotes);
+
+            // Шаг 6: Отрисовка квадратов на исходном изображении
+            Bitmap resultImage = DrawSquares(inputImage, filteredSquares, minSize * 2); // Умножьте минимальный размер на 2, чтобы получить сторону квадрата
+
+            return resultImage;
+        }
+
+        private Bitmap ConvertToGray(Bitmap image)
+        {
+            // Реализация преобразования изображения в оттенки серого
+
+            int width = image.Width;
+            int height = image.Height;
+
+            // Создайте новое изображение в оттенках серого
+            Bitmap grayImage = new Bitmap(width, height);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    // Получите цвет пикселя
+                    Color color = image.GetPixel(x, y);
+
+                    // Вычислите среднее значение RGB для получения оттенка серого
+                    int grayValue = (int)(0.299 * color.R + 0.587 * color.G + 0.114 * color.B);
+
+                    // Создайте цвет оттенка серого
+                    Color grayColor = Color.FromArgb(grayValue, grayValue, grayValue);
+
+                    // Установите цвет пикселя в оттенок серого
+                    grayImage.SetPixel(x, y, grayColor);
+                }
+            }
+
+            return grayImage;
+        }
+
+        private Bitmap DetectEdges(Bitmap grayImage)
+        {
+            // Реализация поиска горизонтальных и вертикальных краев
+            int width = grayImage.Width;
+            int height = grayImage.Height;
+
+            Bitmap edgesImage = new Bitmap(width, height);
+
+            int[,] horizontalSobel = { { -1, 0, 1 }, { -2, 0, 2 }, { -1, 0, 1 } };
+            int[,] verticalSobel = { { -1, -2, -1 }, { 0, 0, 0 }, { 1, 2, 1 } };
+
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    int horizontalGradient = 0;
+                    int verticalGradient = 0;
+
+                    for (int j = -1; j <= 1; j++)
+                    {
+                        for (int i = -1; i <= 1; i++)
+                        {
+                            Color pixel = grayImage.GetPixel(x + i, y + j);
+                            int grayValue = pixel.R; // Используем красную компоненту изображения в оттенках серого
+
+                            horizontalGradient += grayValue * horizontalSobel[i + 1, j + 1];
+                            verticalGradient += grayValue * verticalSobel[i + 1, j + 1];
+                        }
+                    }
+
+                    int gradientMagnitude = (int)Math.Sqrt(horizontalGradient * horizontalGradient + verticalGradient * verticalGradient);
+                    gradientMagnitude = Math.Min(255, gradientMagnitude); // Ограничиваем значение до 255
+
+                    Color edgeColor = Color.FromArgb(gradientMagnitude, gradientMagnitude, gradientMagnitude);
+                    edgesImage.SetPixel(x, y, edgeColor);
+                }
+            }
+
+            return edgesImage;
+        }
+
+        private void BuildHoughSpace(Bitmap edgesImage)
+        {
+            // Реализация построения пространства параметров
+
+            int width = edgesImage.Width;
+            int height = edgesImage.Height;
+
+            int maxSquareSize = Math.Min(width, height) / 4; // Максимальный размер квадрата
+            int minSquareSize = 20; // Минимальный размер квадрата
+
+            int xCenter, yCenter, squareSize; // Параметры квадрата
+
+            houghSpace = new int[maxSquareSize - minSquareSize, width, height];
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    if (edgesImage.GetPixel(x, y).R == 255) // Если пиксель находится на крае
+                    {
+                        for (int size = minSquareSize; size < maxSquareSize; size++)
+                        {
+                            // Вычисляем возможные координаты центра квадрата
+                            for (int angle = 0; angle < 360; angle++)
+                            {
+                                double angleInRadians = angle * Math.PI / 180.0;
+                                xCenter = (int)(x - size * Math.Cos(angleInRadians));
+                                yCenter = (int)(y - size * Math.Sin(angleInRadians));
+
+                                // Увеличиваем счетчик в соответствующей ячейке в Hough Space
+                                if (xCenter >= 0 && xCenter < width && yCenter >= 0 && yCenter < height)
+                                {
+                                    houghSpace[size - minSquareSize, xCenter, yCenter]++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void VoteInHoughSpace(Bitmap edgesImage)
+        {
+            // Реализация голосования
+            int width = edgesImage.Width;
+            int height = edgesImage.Height;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    if (edgesImage.GetPixel(x, y).R == 255) // Если пиксель находится на крае
+                    {
+                        for (int size = 0; size < houghSpace.GetLength(0); size++)
+                        {
+                            for (int angle = 0; angle < 360; angle++)
+                            {
+                                double angleInRadians = angle * Math.PI / 180.0;
+                                int xCenter = (int)(x - size * Math.Cos(angleInRadians));
+                                int yCenter = (int)(y - size * Math.Sin(angleInRadians));
+
+                                if (xCenter >= 0 && xCenter < width && yCenter >= 0 && yCenter < height)
+                                {
+                                    houghSpace[size, xCenter, yCenter]++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        private List<Point> FindMax()
+        {
+            // Реализация поиска максимумов в пространстве параметров
+
+            List<Point> maxima = new List<Point>();
+            int size = houghSpace.GetLength(0);
+            int width = houghSpace.GetLength(1);
+            int height = houghSpace.GetLength(2);
+
+            for (int s = 0; s < size; s++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    for (int y = 0; y < height; y++)
+                    {
+                        int currentValue = houghSpace[s, x, y];
+                        bool isMaximum = true;
+
+                        // Проверяем окружающие ячейки на предмет меньших значений
+                        for (int i = -1; i <= 1; i++)
+                        {
+                            for (int j = -1; j <= 1; j++)
+                            {
+                                for (int k = -1; k <= 1; k++)
+                                {
+                                    int neighborX = x + i;
+                                    int neighborY = y + j;
+                                    int neighborSize = s + k;
+
+                                    if (neighborX >= 0 && neighborX < width && neighborY >= 0 && neighborY < height && neighborSize >= 0 && neighborSize < size)
+                                    {
+                                        if (houghSpace[neighborSize, neighborX, neighborY] > currentValue)
+                                        {
+                                            isMaximum = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!isMaximum) break;
+                            }
+                            if (!isMaximum) break;
+                        }
+
+                        if (isMaximum)
+                        {
+                            maxima.Add(new Point(x, y));
+                        }
+                    }
+                }
+            }
+
+            return maxima;
+        }
+
+        private Bitmap DrawSquares(Bitmap image, List<Point> squares, int squareSize)
+        {
+            // Реализация отрисовки квадратов на исходном изображении
+
+            Bitmap resultImage = new Bitmap(image);
+
+            using (Graphics graphics = Graphics.FromImage(resultImage))
+            {
+                Pen pen = new Pen(Color.Red, 1); // Цвет и ширина линии для отрисовки квадратов
+
+                foreach (Point squareCenter in squares)
+                {
+                    int halfSize = squareSize / 2;
+                    int x = squareCenter.X - halfSize;
+                    int y = squareCenter.Y - halfSize;
+
+                    // Рисуем квадрат на изображении
+                    graphics.DrawRectangle(pen, x, y, squareSize, squareSize);
+                }
+            }
+
+            return resultImage;
+        }
+
+        private int GetSquareSizeFromHoughSpace(Point square, int minSquareSize)
+        {
+            // Предполагаем, что размер квадрата хранится в первом измерении пространства параметров Hough
+            int sizeIndex = 0;
+
+            // Извлекаем размер квадрата из пространства параметров Hough
+            int size = sizeIndex + minSquareSize;
+
+            return size;
+        }
+
+        private List<Point> FilterSquares(List<Point> detectedSquares, int minSize, int minVotes)
+        {
+            List<Point> filteredSquares = new List<Point>();
+
+            foreach (Point square in detectedSquares)
+            {
+                int x = square.X;
+                int y = square.Y;
+                int size = GetSquareSizeFromHoughSpace(square, minSize); // Реализуйте этот метод для получения размера квадрата из пространства параметров Hough
+
+                if (size >= minSize && houghSpace[size, x, y] >= minVotes)
+                {
+                    filteredSquares.Add(square);
+                }
+            }
+
+            return filteredSquares;
+        }
+    }
+
 }
+
 
 // Выделение границ и поиск объектов при помощи методов преобразования Хаффа. Метод Щара и поиск квадрата. 
