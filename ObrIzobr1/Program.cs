@@ -60,16 +60,38 @@ namespace ObrIzobr1
             Console.WriteLine(img6_p.UQI_Part(15, 15));*/
 
 
-            Noise rlNoise = new Noise("C:\\Users\\khram\\Downloads\\originalPic.jpg");
-            rlNoise.RaylieghNoise(7, 9000).Save("C:\\Users\\khram\\Downloads\\rlNoisePic.jpg", ImageFormat.Jpeg);
-            Bitmap nonLocalF = NonLocalMeansFilter.ApplyFilter(rlNoise.updatedImage, 3, 2, 500);
-            nonLocalF.Save("C:\\Users\\khram\\Downloads\\rlNonLocalMeansFilterPic.jpg", ImageFormat.Jpeg);
+            Noise rlNoise = new Noise("C:\\Users\\admin\\Downloads\\originalPic.jpg");
+            rlNoise.RaylieghNoise(7, 11000).Save("C:\\Users\\admin\\Downloads\\rlNoisePic.jpg", ImageFormat.Jpeg);
+            Bitmap nonLocalF = NonLocalMeansFilter.ApplyFilter(rlNoise.updatedImage, 2, 1, 250);
+            nonLocalF.Save("C:\\Users\\admin\\Downloads\\rlNonLocalMeansFilterPic.jpg", ImageFormat.Jpeg);
 
-            ImageProcessing compare = new ImageProcessing(rlNoise.originalImage, nonLocalF);
-            Console.WriteLine(compare.MSE(0, compare.image1.Width, 0, compare.image1.Height));
-            Console.WriteLine(compare.MSE_Part(15, 15));
-            Console.WriteLine(compare.UQI(0, compare.image1.Width, 0, compare.image1.Height));
-            Console.WriteLine(compare.UQI_Part(15, 15));
+            Console.WriteLine("Оригинал vs Шум:\n");
+            ImageProcessing compare1 = new ImageProcessing(rlNoise.originalImage, rlNoise.updatedImage);
+            Console.WriteLine(compare1.MSE(0, compare1.image1.Width, 0, compare1.image1.Height));
+            Console.WriteLine(compare1.MSE_Part(15, 15));
+            Console.WriteLine(compare1.UQI(0, compare1.image1.Width, 0, compare1.image1.Height));
+            Console.WriteLine(compare1.UQI_Part(15, 15));
+
+
+            Console.WriteLine("Оригинал vs Шум + Фильтр:\n");
+            ImageProcessing compare2 = new ImageProcessing(rlNoise.originalImage, nonLocalF);
+            Console.WriteLine(compare2.MSE(0, compare2.image1.Width, 0, compare2.image1.Height));
+            Console.WriteLine(compare2.MSE_Part(15, 15));
+            Console.WriteLine(compare2.UQI(0, compare2.image1.Width, 0, compare2.image1.Height));
+            Console.WriteLine(compare2.UQI_Part(15, 15));
+
+
+            // 3, 2, 500
+            //517,1475089064019
+            //0,04702436215768828
+            //0,9924007558731298
+            //0,06507364927652855
+
+            //4, 2, 250
+           /* 375,4538756342438
+            11,193792592592594
+            0,9860089167691518
+            0,06601543576756154*/
         }
 
     }
@@ -101,7 +123,7 @@ namespace ObrIzobr1
                     res += Math.Pow(image1.GetPixel(i, j).G - image2.GetPixel(i, j).G, 2);
                 }
             }
-            return res / ((double)image1.Height * (double)image2.Width);
+            return res / (x2 - x1) / (y2 - y1);
         }
 
         public double UQI(int x1, int x2, int y1, int y2)
@@ -169,6 +191,7 @@ namespace ObrIzobr1
     {
         public Bitmap originalImage { get; set; }
         public Bitmap updatedImage { get; set; }
+       
 
         public Noise(string im)
         {
@@ -188,10 +211,17 @@ namespace ObrIzobr1
             for (int z = 0; z < 256; z++)
             {
                 if (z < a)
+                {  
                     p[z] = 0;
+                    Console.WriteLine(p[z]);
+                }
                 else
+                {
                     p[z] = p[z - 1] + 2 / b * (z - a) * Math.Exp(-Math.Pow(z - a, 2) / b);
+                    Console.WriteLine(2 / b * (z - a) * Math.Exp(-Math.Pow(z - a, 2) / b));
+                }
             }
+            Console.WriteLine();
             //метод Монте-Карло 
             Random random = new Random();
             for (int i = 0; i < width; i++)
@@ -294,3 +324,5 @@ namespace ObrIzobr1
         }
     }
 }
+
+// Выделение границ и поиск объектов при помощи методов преобразования Хаффа. Метод Щара и поиск квадрата. 
