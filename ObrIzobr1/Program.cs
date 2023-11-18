@@ -4,6 +4,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace ObrIzobr1
@@ -94,13 +95,27 @@ namespace ObrIzobr1
              0,06601543576756154*/
 
 
-            Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\Cat2.jpg");
+            //Хафф и квадраты
+            /*Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\Cat2.jpg");
 
             HoughSquareDetection h = new HoughSquareDetection(originalImage);
 
             Bitmap h2 = h.DetectSquares();
 
-            h2.Save("C:\\Users\\khram\\Downloads\\CatH.jpg", ImageFormat.Jpeg);
+            h2.Save("C:\\Users\\khram\\Downloads\\CatH.jpg", ImageFormat.Jpeg);*/
+
+
+            // Split&Merge
+
+            // Загрузка изображения
+            Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\img22.jpg");
+
+            // Применение алгоритма Split & Merge
+            Bitmap segmentedImage = SplitMergeSegmentation.SegmentSM(originalImage, 110, 100); // 1 число - mean (средняя яркость (или цвет) пикселей в регионе) 2 число - std ( определяет разброс значений яркости в регионе.)
+
+            // Сохранение результата
+            segmentedImage.Save("C:\\Users\\khram\\Downloads\\smimg.jpg", ImageFormat.Jpeg);
+
         }
 
     }
@@ -257,8 +272,6 @@ namespace ObrIzobr1
 
     }
 
-
-
     public class NonLocalMeansFilter
     {
         public static Bitmap ApplyFilter(Bitmap inputImage, int searchWindowRadius, int comparisonWindowRadius, double h)
@@ -332,8 +345,6 @@ namespace ObrIzobr1
             return sumSquaredDiff;
         }
     }
-
-
 
     public class HoughSquareDetection
     {
@@ -632,7 +643,164 @@ namespace ObrIzobr1
         }
     }
 
+    public class SplitMergeSegmentation
+    {
+        public static byte[] SplitMerge(byte[] buffer, double m, double s)
+        {
+            byte[][] split_bytes = new byte[4][]; //  Создание массива для хранения четырех частей изображения.
+            int quad_len = buffer.Length / 4; // Вычисление длины каждой части (квадранта) изображения.
+            int half = (int)Math.Sqrt(buffer.Length / 3) / 2; // Вычисление половины размера стороны квадрата изображения.
+            int stride = 6 * half; // Вычисление шага для обращения к пикселям в массиве buffer
+
+            //Split
+            for (int i = 0; i < 2; i++) // циклы по квадратнам
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    split_bytes[i + j * 2] = new byte[quad_len]; // массив для хранения данных текущего квадранта
+                    for (int x = i * half; x < (i + 1) * half; x++) // циклы по гор. в квадранте
+                    {
+                        for (int y = j * half; y < (j + 1) * half; y++) // циклы по вер. в квадранте
+                        {
+                            int position = x * 3 + y * stride; // Вычисление позиции текущего пикселя в массиве buffer.
+                            int quad_position = (x - i * half) * 3 + (y - j * half) * half * 3; // Вычисление позиции текущего пикселя в массиве текущего квадранта.
+                            for (int c = 0; c < 3; c++) //Цикл по компонентам цвета (RGB).
+                            {
+                                split_bytes[i + j * 2][quad_position + c] = buffer[position + c]; //Копирование значений цветов текущего пикселя в массив текущего квадранта.
+                            }
+                        }
+                    }
+
+                    double mean = 0; // Инициализация переменной для хранения среднего значения цветов в текущем квадранте.
+                    for (int k = 0; k < quad_len; k += 3) // Цикл по значениям цветов в текущем квадранте.
+                    {
+                        mean += split_bytes[i + j * 2][k]; 
+                    }
+                    mean /= Math.Pow(half, 2); 
+
+                    double std = 0;
+                    for (int k = 0; k < quad_len; k += 3)
+                    {
+                        std += Math.Pow(split_bytes[i + j * 2][k] - mean, 2);
+                    }
+                    std /= Math.Pow(half, 2); // Инициализация переменной для хранения стандартного отклонения цветов в текущем квадранте.
+
+                    if (std > s && mean > 0 && mean < m)
+                    {
+                        if (quad_len >= 700)
+                        {
+                            split_bytes[i + j * 2] = SplitMerge(split_bytes[i + j * 2], m, s);
+                        }
+                        else
+                        {
+                            split_bytes[i + j * 2] = split_bytes[i + j * 2].Select(x => (byte)255).ToArray();
+                        }
+                    }
+                    else
+                    {
+                        if (quad_len >= 150)
+                        {
+                            split_bytes[i + j * 2] = SplitMerge(split_bytes[i + j * 2], m, s);
+                        }
+                        else
+                        {
+                            split_bytes[i + j * 2] = split_bytes[i + j * 2].Select(x => (byte)0).ToArray();
+                        }
+                    }
+                }
+            }
+
+            //Merge
+            byte[] result = new byte[buffer.Length];
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int x = i * half; x < (i + 1) * half; x++)
+                    {
+                        for (int y = j * half; y < (j + 1) * half; y++)
+                        {
+                            int position = x * 3 + y * stride;
+                            int quad_position = (x - i * half) * 3 + (y - j * half) * half * 3;
+                            for (int c = 0; c < 3; c++)
+                            {
+                                result[position + c] = split_bytes[i + j * 2][quad_position + c];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        public static Bitmap SegmentSM(Bitmap image, double mean, double std)
+        {
+            int w = image.Width;
+            int h = image.Height;
+
+            BitmapData image_data = image.LockBits(
+                new Rectangle(0, 0, w, h),
+                ImageLockMode.ReadOnly,
+                PixelFormat.Format24bppRgb); // Получение данных изображения для дальнейшей обработки.
+
+            int bytes = image_data.Stride * image_data.Height; // общее число байтов в изобр.
+            byte[] buffer = new byte[bytes]; // буфер для хранения данных изображения.
+
+            Marshal.Copy(image_data.Scan0, buffer, 0, bytes); //  Копирование данных изображения в буфер.
+            image.UnlockBits(image_data); //  Освобождение данных изображения
+
+            // вычисление размера квадратного изображения
+            int padded_sq_dim = new int(); 
+            int n = 0;
+
+            while (padded_sq_dim <= Math.Max(w, h))
+            {
+                padded_sq_dim = (int)Math.Pow(2, n);
+                if (padded_sq_dim == Math.Max(w, h))
+                {
+                    break;
+                }
+                n++;
+            }
+
+            // Вычисление отступов для центрирования исходного изображения в квадратном
+            int left_pad = (int)Math.Floor((double)padded_sq_dim - w) / 2; 
+            int top_pad = (int)Math.Floor((double)padded_sq_dim - h) / 2;
+
+            Bitmap padded = new Bitmap(padded_sq_dim, padded_sq_dim); // Создание нового квадратного изображения.
+            BitmapData padded_data = padded.LockBits(
+                new Rectangle(0, 0, padded_sq_dim, padded_sq_dim),
+                ImageLockMode.WriteOnly,
+                PixelFormat.Format24bppRgb);
+
+            int pad_bytes = padded_data.Stride * padded_data.Height; // вычисление количества байтов в данных квадратного изображения.
+            byte[] padded_result = new byte[pad_bytes]; // буфер для хранения данных квадратного изображения.
+
+            // заполняем изображение белым фоном
+            for (int x = 0; x < w; x++)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    int image_position = x * 3 + y * image_data.Stride;
+                    int padded_position = x * 3 + y * padded_data.Stride;
+                    for (int c = 0; c < 3; c++)
+                    {
+                        padded_result[padded_position + 3 * left_pad + top_pad * padded_data.Stride + c] = buffer[image_position + c];
+                    }
+                }
+            }
+
+            padded_result = SplitMerge(padded_result, mean, std);
+
+            Marshal.Copy(padded_result, 0, padded_data.Scan0, pad_bytes); // Копирование результата в данные квадратного изображения.
+            padded.UnlockBits(padded_data); // Освобождение данных квадратного изображения
+
+            return padded;
+        }
+    }   
 }
 
 
 // Выделение границ и поиск объектов при помощи методов преобразования Хафа. Метод Щарра и поиск квадрата. 
+
