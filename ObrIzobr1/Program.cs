@@ -96,25 +96,27 @@ namespace ObrIzobr1
 
 
             //Хафф и квадраты
-            /*Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\Cat2.jpg");
+            Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\ocean.jpg");
 
             HoughSquareDetection h = new HoughSquareDetection(originalImage);
 
-            Bitmap h2 = h.DetectSquares();
+            Bitmap h2 = h.DetectSquares(30, 100);
 
-            h2.Save("C:\\Users\\khram\\Downloads\\CatH.jpg", ImageFormat.Jpeg);*/
+            h2.Save("C:\\Users\\khram\\Downloads\\oceanH.jpg", ImageFormat.Jpeg);
 
 
             // Split&Merge
 
             // Загрузка изображения
-            Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\img22.jpg");
+            //Bitmap originalImage = new Bitmap("C:\\Users\\khram\\Downloads\\img22.jpg");
 
-            // Применение алгоритма Split & Merge
-            Bitmap segmentedImage = SplitMergeSegmentation.SegmentSM(originalImage, 110, 100); // 1 число - mean (средняя яркость (или цвет) пикселей в регионе) 2 число - std ( определяет разброс значений яркости в регионе.)
+            // Применение алгоритма Split & Merge 
+            // 1) Стандартное отклонение цветовых данных в регионе
+            // 2) Среднее значение цветов в регионе
+            //Bitmap segmentedImage = SplitMergeSegmentation.SegmentSM(originalImage, 120, 110); // 1 число - mean (средняя яркость (или цвет) пикселей в регионе) 2 число - std.. ( определяет разброс значений яркости (цветов) в регионе.)
 
             // Сохранение результата
-            segmentedImage.Save("C:\\Users\\khram\\Downloads\\smimg.jpg", ImageFormat.Jpeg);
+            //segmentedImage.Save("C:\\Users\\khram\\Downloads\\smimg3.jpg", ImageFormat.Jpeg);
 
         }
 
@@ -350,13 +352,13 @@ namespace ObrIzobr1
     {
         private Bitmap inputImage;
         private int[,,] houghSpace;
-
+        private int[,] squareSizes;
         public HoughSquareDetection(Bitmap image)
         {
             inputImage = image;
         }
 
-        public Bitmap DetectSquares()
+        public Bitmap DetectSquares(int minSize, int minVotes)
         {
             // Шаг 1: Преобразование в оттенки серого и поиск горизонтальных и вертикальных краев
             Bitmap grayImage = ConvertToGray(inputImage);
@@ -372,12 +374,10 @@ namespace ObrIzobr1
             List<Point> detectedSquares = FindMax();
 
             // Шаг 5: Фильтрация результатов
-            int minSize = 20; //минимальный размер квадрата // 20
-            int minVotes = 200; //минимальное количество голосов // 200
             List<Point> filteredSquares = FilterSquares(detectedSquares, minSize, minVotes);
 
             // Шаг 6: Отрисовка квадратов на исходном изображении
-            Bitmap resultImage = DrawSquares(inputImage, filteredSquares, minSize * 2); //размер * 2, чтобы получить сторону квадрата
+            Bitmap resultImage = DrawSquares(inputImage, filteredSquares);
 
             return resultImage;
         }
@@ -396,16 +396,13 @@ namespace ObrIzobr1
             {
                 for (int x = 0; x < width; x++)
                 {
-                    // Получите цвет пикселя
                     Color color = image.GetPixel(x, y);
 
                     // среднее значение RGB для получения оттенка серого
                     int grayValue = (int)(0.299 * color.R + 0.587 * color.G + 0.114 * color.B);
 
-                    // цвет оттенка серого
                     Color grayColor = Color.FromArgb(grayValue, grayValue, grayValue);
 
-                    // цвет пикселя в оттенок серого
                     grayImage.SetPixel(x, y, grayColor);
                 }
             }
@@ -415,6 +412,7 @@ namespace ObrIzobr1
 
         private Bitmap DetectEdges(Bitmap grayImage)
         {
+            // Выделяем контуры объектов на изображении, тк они могут быть границами квадратов
             // Реализация поиска горизонтальных и вертикальных краев
             int width = grayImage.Width;
             int height = grayImage.Height;
@@ -443,7 +441,7 @@ namespace ObrIzobr1
                         for (int i = -1; i <= 1; i++)
                         {
                             Color pixel = grayImage.GetPixel(x + i, y + j);
-                            int grayValue = pixel.R; // Используем красную компоненту изображения в оттенках серого
+                            int grayValue = pixel.R;
 
                             horizontalGradient += grayValue * horizontalSobel[i + 1, j + 1];
                             verticalGradient += grayValue * verticalSobel[i + 1, j + 1];
@@ -452,7 +450,7 @@ namespace ObrIzobr1
 
                     int gradientMagnitude = (int)Math.Sqrt(horizontalGradient * horizontalGradient + verticalGradient * verticalGradient);
                     gradientMagnitude = Math.Min(255, gradientMagnitude);
-
+                    // градиенты используем позже в простр. параметров Хафа для поиска вертикальных и горизонтальных линий 
                     Color edgeColor = Color.FromArgb(gradientMagnitude, gradientMagnitude, gradientMagnitude);
                     edgesImage.SetPixel(x, y, edgeColor);
                 }
@@ -463,23 +461,24 @@ namespace ObrIzobr1
 
         private void BuildHoughSpace(Bitmap edgesImage)
         {
-            // Реализация построения пространства параметров
+            // Реализация построения пространства параметров (потенциальное расположение и размер квадрата на изображении)
 
             int width = edgesImage.Width;
             int height = edgesImage.Height;
 
             int maxSquareSize = Math.Min(width, height) / 4; // Максимальный размер квадрата
-            int minSquareSize = 20; // Минимальный размер квадрата
+            int minSquareSize = Math.Min(width, height) / 30; // Минимальный размер квадрата
 
-            int xCenter, yCenter, squareSize; // Параметры квадрата
+            int xCenter, yCenter; // Параметры квадрата
 
-            houghSpace = new int[maxSquareSize - minSquareSize, width, height];
-
+            houghSpace = new int[maxSquareSize - minSquareSize, width, height];// пространство Хафа
+            squareSizes = new int[width, height];
+            // голосование для создания пространства параметров (за возможные центры квадратов разных размеров и положений)
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
                 {
-                    if (edgesImage.GetPixel(x, y).R == 255) // Если пиксель находится на крае
+                    if (edgesImage.GetPixel(x, y).R == 255) // Если пиксель находится на границе из DetectEdges
                     {
                         for (int size = minSquareSize; size < maxSquareSize; size++)
                         {
@@ -494,6 +493,7 @@ namespace ObrIzobr1
                                 if (xCenter >= 0 && xCenter < width && yCenter >= 0 && yCenter < height)
                                 {
                                     houghSpace[size - minSquareSize, xCenter, yCenter]++;
+                                    squareSizes[xCenter, yCenter] = size - minSquareSize;
                                 }
                             }
                         }
@@ -507,7 +507,7 @@ namespace ObrIzobr1
             // Реализация голосования
             int width = edgesImage.Width;
             int height = edgesImage.Height;
-
+            // Голосование за квадраты различных размеров и положений для выделения более подходящих кандидатов
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
@@ -536,9 +536,9 @@ namespace ObrIzobr1
 
         private List<Point> FindMax()
         {
-            // Реализация поиска максимумов в пространстве параметров
+            // Реализация поиска максимумов в пространстве параметров на звание квадрата
 
-            List<Point> maximal = new List<Point>();
+            List<Point> maximal = new List<Point>(); // каждая точка- потенциальный обнаруженный квадрат
             int size = houghSpace.GetLength(0);
             int width = houghSpace.GetLength(1);
             int height = houghSpace.GetLength(2);
@@ -588,7 +588,7 @@ namespace ObrIzobr1
             return maximal;
         }
 
-        private Bitmap DrawSquares(Bitmap image, List<Point> squares, int squareSize)
+        private Bitmap DrawSquares(Bitmap image, List<Point> squares)
         {
             // Реализация отрисовки квадратов на исходном изображении
 
@@ -600,6 +600,7 @@ namespace ObrIzobr1
 
                 foreach (Point squareCenter in squares)
                 {
+                    int squareSize = squareSizes[squareCenter.X, squareCenter.Y];
                     int halfSize = squareSize / 2;
                     int x = squareCenter.X - halfSize;
                     int y = squareCenter.Y - halfSize;
@@ -612,17 +613,6 @@ namespace ObrIzobr1
             return resultImage;
         }
 
-        private int GetSquareSizeFromHoughSpace(Point square, int minSquareSize)
-        {
-            // Предполагаем, что размер квадрата хранится в первом измерении пространства параметров Hough
-            int sizeIndex = 0;
-
-            // Извлекаем размер квадрата из пространства параметров Hough
-            int size = sizeIndex + minSquareSize;
-
-            return size;
-        }
-
         private List<Point> FilterSquares(List<Point> detectedSquares, int minSize, int minVotes)
         {
             List<Point> filteredSquares = new List<Point>();
@@ -631,7 +621,7 @@ namespace ObrIzobr1
             {
                 int x = square.X;
                 int y = square.Y;
-                int size = GetSquareSizeFromHoughSpace(square, minSize);
+                int size = squareSizes[x, y];
 
                 if (size >= minSize && houghSpace[size, x, y] >= minVotes)
                 {
@@ -647,10 +637,10 @@ namespace ObrIzobr1
     {
         public static byte[] SplitMerge(byte[] buffer, double m, double s)
         {
-            byte[][] split_bytes = new byte[4][]; //  Создание массива для хранения четырех частей изображения.
-            int quad_len = buffer.Length / 4; // Вычисление длины каждой части (квадранта) изображения.
-            int half = (int)Math.Sqrt(buffer.Length / 3) / 2; // Вычисление половины размера стороны квадрата изображения.
-            int stride = 6 * half; // Вычисление шага для обращения к пикселям в массиве buffer
+            byte[][] split_bytes = new byte[4][]; //массив для хранения четырех частей изображения.
+            int quad_len = buffer.Length / 4; //длина части (квадранта) изображения.
+            int half = (int)Math.Sqrt(buffer.Length / 3) / 2; //половина размера стороны квадрата изображения.
+            int stride = 6 * half; //шаг для обращения к пикселям в массиве buffer
 
             //Split
             for (int i = 0; i < 2; i++) // циклы по квадратнам
@@ -662,8 +652,8 @@ namespace ObrIzobr1
                     {
                         for (int y = j * half; y < (j + 1) * half; y++) // циклы по вер. в квадранте
                         {
-                            int position = x * 3 + y * stride; // Вычисление позиции текущего пикселя в массиве buffer.
-                            int quad_position = (x - i * half) * 3 + (y - j * half) * half * 3; // Вычисление позиции текущего пикселя в массиве текущего квадранта.
+                            int position = x * 3 + y * stride; //позиция текущего пикселя в массиве buffer.
+                            int quad_position = (x - i * half) * 3 + (y - j * half) * half * 3; //позиция текущего пикселя в массиве текущего квадранта.
                             for (int c = 0; c < 3; c++) //Цикл по компонентам цвета (RGB).
                             {
                                 split_bytes[i + j * 2][quad_position + c] = buffer[position + c]; //Копирование значений цветов текущего пикселя в массив текущего квадранта.
@@ -671,21 +661,21 @@ namespace ObrIzobr1
                         }
                     }
 
-                    double mean = 0; // Инициализация переменной для хранения среднего значения цветов в текущем квадранте.
+                    double mean = 0; //среднее значение цветов в текущем квадранте.
                     for (int k = 0; k < quad_len; k += 3) // Цикл по значениям цветов в текущем квадранте.
                     {
                         mean += split_bytes[i + j * 2][k]; 
                     }
                     mean /= Math.Pow(half, 2); 
 
-                    double std = 0;
+                    double stdColorVariance = 0; //стандартное отклонение цветов в текущем квадранте.
                     for (int k = 0; k < quad_len; k += 3)
                     {
-                        std += Math.Pow(split_bytes[i + j * 2][k] - mean, 2);
+                        stdColorVariance += Math.Pow(split_bytes[i + j * 2][k] - mean, 2);
                     }
-                    std /= Math.Pow(half, 2); // Инициализация переменной для хранения стандартного отклонения цветов в текущем квадранте.
+                    stdColorVariance /= Math.Pow(half, 2); 
 
-                    if (std > s && mean > 0 && mean < m)
+                    if (stdColorVariance > s && mean > 0 && mean < m)
                     {
                         if (quad_len >= 700)
                         {
@@ -734,7 +724,7 @@ namespace ObrIzobr1
             return result;
         }
 
-        public static Bitmap SegmentSM(Bitmap image, double mean, double std)
+        public static Bitmap SegmentSM(Bitmap image, double mean, double stdColorVariance)
         {
             int w = image.Width;
             int h = image.Height;
@@ -791,7 +781,7 @@ namespace ObrIzobr1
                 }
             }
 
-            padded_result = SplitMerge(padded_result, mean, std);
+            padded_result = SplitMerge(padded_result, mean, stdColorVariance);
 
             Marshal.Copy(padded_result, 0, padded_data.Scan0, pad_bytes); // Копирование результата в данные квадратного изображения.
             padded.UnlockBits(padded_data); // Освобождение данных квадратного изображения
